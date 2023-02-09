@@ -7,3 +7,5 @@ wget --load-cookies /tmp/cookies.txt \
 sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')&id=1LpjC4pNCUH51U_QuEA-I1oY6dYjfb7AL" \
 -O train.tar.gz && rm -rf /tmp/cookies.txt && \
 tar -zxvf train.tar.gz && rm -rf train.tar.gz
+
+mv train.csv data/raw/
