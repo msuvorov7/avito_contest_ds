@@ -1,0 +1,28 @@
+stages:
+  train_load:
+    cmd: sh src/data_load/get_train_data.sh
+    outs:
+      - data/raw/train.csv
+    deps:
+      - src/data_load/get_train_data.sh
+
+  build_train:
+    cmd: python src/features/build_feature.py --mode=train
+    outs:
+      - data/processed/train_dataset.pkl
+    deps:
+      - src/features/build_feature.py
+
+  build_val:
+    cmd: python src/features/build_feature.py --mode=val
+    outs:
+      - data/processed/val_dataset.pkl
+    deps:
+      - src/features/build_feature.py
+      - data/processed/train_dataset.pkl
+
+  train_model:
+    cmd: python src/model/train_model.py --epoch=2
+    deps:
+      - src/model/train_model.py
+      - src/model/model.py
