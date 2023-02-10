@@ -22,7 +22,7 @@ stages:
       - data/processed/train_dataset.pkl
 
   train_model:
-    cmd: python src/model/train_model.py --epoch=2
+    cmd: python src/model/train_model.py --epoch=3
     deps:
       - src/model/train_model.py
       - src/model/model.py
