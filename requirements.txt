@@ -1,0 +1,8 @@
+torch~=1.13.1
+numpy~=1.23.3
+pandas~=1.4.4
+PyYAML~=6.0
+gensim~=4.3.0
+scikit-learn~=1.1.2
+tqdm~=4.64.1
+nltk~=3.7
