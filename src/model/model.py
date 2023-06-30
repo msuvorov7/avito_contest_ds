@@ -6,41 +6,55 @@ import torch.nn.functional as F
 class CNNBaseline(nn.Module):
     def __init__(
             self,
+            vocab_size: int,
             embedding_dim: int,
+            in_channels: int,
             out_channels: int,
             kernel_sizes: list,
             output_dim: int,
-            dropout=0.5,
+            dropout=0.2,
     ):
         super().__init__()
-        self.conv_0 = nn.Conv1d(in_channels=embedding_dim,
-                                out_channels=out_channels,
-                                kernel_size=kernel_sizes[0])
+        self.embedding = nn.Embedding(vocab_size, embedding_dim)
 
-        self.conv_1 = nn.Conv1d(in_channels=embedding_dim,
-                                out_channels=out_channels,
-                                kernel_size=kernel_sizes[1])
-
-        self.conv_2 = nn.Conv1d(in_channels=embedding_dim,
-                                out_channels=out_channels,
-                                kernel_size=kernel_sizes[2])
+        self.convs = nn.ModuleList()
+        for kernel_size in kernel_sizes:
+            self.convs.append(
+                nn.Conv2d(
+                    in_channels=in_channels,
+                    out_channels=out_channels,
+                    kernel_size=(kernel_size, embedding_dim)
+                )
+            )
 
         self.fc = nn.Linear(len(kernel_sizes) * out_channels, output_dim)
 
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, text):
+    def forward(self, x):
 
-        embedded = text.permute(0, 2, 1)
+        # x = [batch_size, seq_len]
+        embedded = self.embedding(x)
 
-        conved_0 = F.relu(self.conv_0(embedded))
-        conved_1 = F.relu(self.conv_1(embedded))
-        conved_2 = F.relu(self.conv_2(embedded))
+        # embedded = [batch_size, sent_len, emb_dim]
+        embedded = embedded.unsqueeze(1)
 
-        pooled_0 = F.max_pool1d(conved_0, conved_0.shape[2]).squeeze(2)
-        pooled_1 = F.max_pool1d(conved_1, conved_1.shape[2]).squeeze(2)
-        pooled_2 = F.max_pool1d(conved_2, conved_2.shape[2]).squeeze(2)
+        # embedded = [batch_size, 1, sent len, emb dim]
+        many_conved = []
+        for conv in self.convs:
+            many_conved.append(
+                F.leaky_relu(self.dropout(conv(embedded)).squeeze(3))
+            )
 
-        cat = self.dropout(torch.cat((pooled_0, pooled_1, pooled_2), dim=1))
+        # conv_n = [batch_size, out_channels, sent_len - kernel_sizes[n]]
+        pooled = []
+        for conved in many_conved:
+            pooled.append(
+                F.max_pool1d(conved, conved.shape[2]).squeeze(2)
+            )
 
+        # pooled_n = [batch_size, out_channels]
+        cat = self.dropout(torch.cat(pooled, dim=1))
+
+        # cat = [batch_size, out_channels * len(kernel_sizes)]
         return self.fc(cat)

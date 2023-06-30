@@ -3,8 +3,8 @@ import logging
 import os
 import pickle
 import sys
+from collections import Counter
 
-import numpy as np
 import pandas as pd
 from gensim.models import FastText
 
@@ -29,24 +29,40 @@ logging.basicConfig(
 fileDir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../')
 
 
-def build_feature(df: pd.DataFrame, model_path: str, mode: str) -> tuple:
+def build_feature(df: pd.DataFrame, model_path: str, data_processed_dir: str, mode: str) -> tuple:
     text = df['title'] + ' ' + df['description']
-    text = text.apply(lambda item: item.lower())
 
     tokenizer = WordPunctTokenizer()
     tokens = text.apply(lambda item: tokenizer.tokenize(item))
+    tokens = tokens.apply(lambda item: [word.lower() for word in item])
 
     if mode == 'train':
-        fasttext_model = FastText(tokens, vector_size=100, min_n=3, max_n=5, window=3, epochs=3)
+        counter = Counter()
+        for word in tokens:
+            counter.update(word)
+
+        counter = counter.most_common(55_000)
+        counter = list(filter(lambda item: item[1] > 20, counter))
+
+        vocabulary = ['<PAD>', '<UNK>']
+        vocabulary += [key for key, _ in counter]
+
+        ind_to_word = dict(enumerate(vocabulary))
+        word_to_ind = {value: key for key, value in ind_to_word.items()}
+
+        with open(data_processed_dir + 'vocab_to_ind.pkl', 'wb') as file:
+            pickle.dump(word_to_ind, file)
+        logging.info('vocab_to_ind saved')
+
+        fasttext_model = FastText(tokens, vector_size=100, min_n=3, max_n=4, window=3, epochs=3)
         fasttext_model.save(model_path + 'fasttext_100.model')
         logging.info('fasttext model saved')
-    # else:
-    #     fasttext_model = FastText.load(model_path + 'fasttext_100.model')
-    #     logging.info('fasttext model loaded')
 
-    # feats = tokens.apply(lambda sentence: np.array([fasttext_model.wv[item] for item in sentence]))
+    else:
+        with open(data_processed_dir + 'vocab_to_ind.pkl', 'rb') as file:
+            word_to_ind = pickle.load(file)
 
-    return tokens, df['is_bad']
+    return tokens, df['is_bad'], word_to_ind
 
 
 def download_frame(file_path: str) -> pd.DataFrame:
@@ -81,8 +97,8 @@ if __name__ == '__main__':
 
     data = download_frame(data_raw_dir + args.mode + '.csv')
 
-    features, targets = build_feature(data, model_path, args.mode)
-    dataset = AvitoDataset(features, targets)
+    features, targets, word_to_ind = build_feature(data, model_path, data_processed_dir, args.mode)
+    dataset = AvitoDataset(features, targets, word_to_ind)
 
     with open(data_processed_dir + f'{args.mode}_dataset.pkl', 'wb') as file:
         pickle.dump(dataset, file)
